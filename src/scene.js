@@ -101,12 +101,12 @@ export function initScene() {
   // Prevent right-click menu while panning
   (renderer.domElement || canvas).addEventListener('contextmenu', e => e.preventDefault());
 
-  // ======== FIELD GEOMETRY (corrected) ========
+  // ======== FIELD GEOMETRY — mound @ origin, home @ (0,0,-60.5), 1 unit = 1 ft ========
   const tl = new THREE.TextureLoader();
-  const grassColor = tl.load('./textures/grass/color.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.repeat.set(24, 24); });
-  const grassNormal = tl.load('./textures/grass/normal.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24); });
-  const dirtColor  = tl.load('./textures/dirt/color.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.repeat.set(8, 8); });
-  const dirtNormal = tl.load('./textures/dirt/normal.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(8, 8); });
+  const grassColor = tl.load('./textures/grass/color.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.repeat.set(8, 8); });
+  const grassNormal = tl.load('./textures/grass/normal.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(8, 8); });
+  const dirtColor  = tl.load('./textures/dirt/color.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.repeat.set(2, 2); });
+  const dirtNormal = tl.load('./textures/dirt/normal.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2); });
 
   // Grass outfield
   const ground = new THREE.Mesh(
@@ -117,72 +117,84 @@ export function initScene() {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Landmarks
+  // Home and axes
   const HOME = new THREE.Vector3(0, 0, -60.5);
-  const B1   = new THREE.Vector3(90, 0, -60.5);
-  const B2   = new THREE.Vector3(0, 0, 29.5);
-  const B3   = new THREE.Vector3(-90, 0, -60.5);
+  const ex = new THREE.Vector3(1, 0, 0); // +X → 1B line (right field)
+  const ez = new THREE.Vector3(0, 0, 1); // +Z → 3B line (left field)
+  const P = (x, z, y = 0) => new THREE.Vector3(HOME.x + x, y, HOME.z + z);
 
-  // Infield diamond (dirt)
-  const DIAMOND = 127.3;
-  const infieldDiamond = new THREE.Mesh(
-    new THREE.PlaneGeometry(DIAMOND, DIAMOND, 1, 1),
-    new THREE.MeshStandardMaterial({ map: dirtColor, normalMap: dirtNormal, roughness: 0.92, metalness: 0.0 })
+  // Dimensions (ft)
+  const BASE = 90;
+  const BASEPATH_W = 6;
+
+  // Bases (exact square)
+  const B_HOME = P(0, 0);
+  const B_1B   = P(BASE, 0);
+  const B_2B   = P(BASE, BASE);
+  const B_3B   = P(0, BASE);
+
+  // Infield dirt (diamond centered between home and 2B)
+  const infieldSize = BASE * Math.SQRT2;
+  const infield = new THREE.Mesh(
+    new THREE.PlaneGeometry(infieldSize, infieldSize, 1, 1),
+    new THREE.MeshStandardMaterial({ map: dirtColor, normalMap: dirtNormal, roughness: 0.94, metalness: 0.0 })
   );
-  infieldDiamond.rotation.x = -Math.PI / 2;
-  infieldDiamond.rotation.z = Math.PI / 4;
-  infieldDiamond.position.set(0, 0.006, -60.5 + 45);
-  infieldDiamond.receiveShadow = true;
-  scene.add(infieldDiamond);
+  infield.rotation.x = -Math.PI / 2;
+  infield.rotation.z = Math.PI / 4;
+  infield.position.set((B_HOME.x + B_2B.x) / 2, 0.006, (B_HOME.z + B_2B.z) / 2);
+  infield.receiveShadow = true;
+  scene.add(infield);
 
-  // Base paths
-  function addPath(x1, z1, x2, z2, width = 6) {
-    const dx = x2 - x1, dz = z2 - z1;
+  // Base paths (rectangular dirt strips)
+  function addPath(a, b, w = BASEPATH_W) {
+    const dx = b.x - a.x, dz = b.z - a.z;
     const len = Math.hypot(dx, dz);
-    const geo = new THREE.PlaneGeometry(width, len);
+    const geo = new THREE.PlaneGeometry(w, len);
     const mat = new THREE.MeshStandardMaterial({ map: dirtColor, normalMap: dirtNormal, roughness: 0.92, metalness: 0.0 });
     const m = new THREE.Mesh(geo, mat);
     m.rotation.x = -Math.PI / 2;
     m.rotation.z = Math.atan2(dx, dz);
-    m.position.set((x1 + x2) / 2, 0.007, (z1 + z2) / 2);
+    m.position.set((a.x + b.x) / 2, 0.007, (a.z + b.z) / 2);
     m.receiveShadow = true;
     scene.add(m);
   }
-  addPath(HOME.x, HOME.z, B1.x, B1.z);
-  addPath(B1.x, B1.z, B2.x, B2.z);
-  addPath(B2.x, B2.z, B3.x, B3.z);
-  addPath(B3.x, B3.z, HOME.x, HOME.z);
+  addPath(B_HOME, B_1B);
+  addPath(B_1B, B_2B);
+  addPath(B_2B, B_3B);
+  addPath(B_3B, B_HOME);
 
-  // Foul lines
-  function addChalkLine(x1, z1, x2, z2, width = 0.8) {
-    const dx = x2 - x1, dz = z2 - z1;
-    const len = Math.sqrt(dx * dx + dz * dz);
+  // Perpendicular foul lines from home (polygonOffset avoids z-fighting)
+  function addChalkLine(a, dir, length, width = 0.85) {
+    const b = a.clone().addScaledVector(dir, length);
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
     const geo = new THREE.PlaneGeometry(width, len);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0.0 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.6, metalness: 0.0,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+    });
     const m = new THREE.Mesh(geo, mat);
     m.rotation.x = -Math.PI / 2;
     m.rotation.z = Math.atan2(dx, dz);
-    m.position.set((x1 + x2) / 2, 0.012, (z1 + z2) / 2);
+    m.position.set((a.x + b.x) / 2, 0.012, (a.z + b.z) / 2);
     m.receiveShadow = true;
     scene.add(m);
   }
-  addChalkLine(HOME.x, HOME.z, HOME.x + 280, HOME.z);
-  addChalkLine(HOME.x, HOME.z, HOME.x - 280, HOME.z);
+  addChalkLine(B_HOME, ex, 330); // RF line
+  addChalkLine(B_HOME, ez, 330); // LF line
 
-  // Bases
+  // Bases (bags)
   const baseTex = tl.load('./textures/misc/base_color.jpg', t => { t.colorSpace = THREE.SRGBColorSpace; });
-  function addBase(x, z, size = 1.5) {
+  function addBase(pos, size = 1.5) {
     const m = new THREE.Mesh(
       new THREE.BoxGeometry(size, 0.12, size),
       new THREE.MeshStandardMaterial({ map: baseTex, roughness: 0.55, metalness: 0.0 })
     );
-    m.position.set(x, 0.06, z);
+    m.position.set(pos.x, 0.06, pos.z);
     m.castShadow = true; m.receiveShadow = true;
     scene.add(m);
   }
-  addBase(B1.x, B1.z);
-  addBase(B2.x, B2.z);
-  addBase(B3.x, B3.z);
+  addBase(B_1B); addBase(B_2B); addBase(B_3B);
 
   // Home plate (single declaration)
   (function addHomePlate() {
@@ -194,12 +206,12 @@ export function initScene() {
       new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.6, clearcoat: 0.2 })
     );
     plate.rotation.x = -Math.PI / 2;
-    plate.position.set(HOME.x, 0.011, HOME.z);
+    plate.position.set(B_HOME.x, 0.011, B_HOME.z);
     plate.receiveShadow = true;
     scene.add(plate);
   })();
 
-  // Strike zone
+  // Strike zone (unchanged)
   const zone = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.42, 2.0)),
     new THREE.LineBasicMaterial({ color: 0xf2f2f2, transparent: true, opacity: 0.9 })
@@ -207,23 +219,65 @@ export function initScene() {
   zone.position.set(0, 2.35, -60.5);
   scene.add(zone);
 
-  // Outfield wall (visible with new lights/fog)
+  // -------- Curved, symmetrical outfield wall: 330 / 375 / 400 / 375 / 330 --------
   const wallGroup = new THREE.Group();
   const fenceMat = new THREE.MeshStandardMaterial({ color: 0x1b3b5a, roughness: 0.5, metalness: 0.1 });
-  function addFence(x1, z1, x2, z2, height = 12, thick = 0.6) {
-    const dx = x2 - x1, dz = z2 - z1;
-    const len = Math.sqrt(dx * dx + dz * dz);
+
+  function addFence(a, b, height = 12, thick = 0.6) {
+    const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
     const geo = new THREE.BoxGeometry(thick, height, len);
     const m = new THREE.Mesh(geo, fenceMat);
-    m.position.set((x1 + x2) / 2, height / 2, (z1 + z2) / 2);
+    m.position.set((a.x + b.x) / 2, height / 2, (a.z + b.z) / 2);
     m.rotation.y = Math.atan2(dx, dz);
     m.castShadow = true; m.receiveShadow = true;
     wallGroup.add(m);
   }
-  addFence(-200, 260, 200, 260, 12);    // center field
-  addFence(200, 260, 280, 100, 12);     // right corner
-  addFence(-200, 260, -280, 100, 12);   // left corner
+
+  // Polar from HOME: angle 0° along +X (RF), 90° along +Z (LF)
+  const polarFromHome = (deg, r) => {
+    const rad = THREE.MathUtils.degToRad(deg);
+    return P(r * Math.cos(rad), r * Math.sin(rad));
+  };
+
+  // Control radii at 0°, 22.5°, 45°, 67.5°, 90°
+  const rf = 330, rcf = 375, cf = 400, lcf = 375, lf = 330;
+  const controlsR = [
+    { deg:   0, r: rf   },
+    { deg:22.5, r: rcf  },
+    { deg:  45, r: cf   },
+    { deg:67.5, r: lcf  },
+    { deg:  90, r: lf   }
+  ];
+
+  // Sample piecewise linearly for a smooth curve
+  const curvePts = [];
+  for (let i = 0; i < controlsR.length - 1; i++) {
+    const a = controlsR[i], b = controlsR[i + 1];
+    const steps = 10; // increase for smoother wall
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const deg = THREE.MathUtils.lerp(a.deg, b.deg, t);
+      const r   = THREE.MathUtils.lerp(a.r,  b.r,  t);
+      curvePts.push(polarFromHome(deg, r));
+    }
+  }
+  curvePts.push(polarFromHome(controlsR.at(-1).deg, controlsR.at(-1).r));
+
+  // Stitch fence segments
+  for (let i = 0; i < curvePts.length - 1; i++) {
+    addFence(curvePts[i], curvePts[i + 1], 12, 0.6);
+  }
   scene.add(wallGroup);
+
+  // Optional: gentle wall lights along the arc for depth
+  [-180, -90, 0, 90, 180].forEach(x => {
+    const s = new THREE.SpotLight(0xffffff, 0.6, 300, Math.PI / 4.5, 0.5, 1.0);
+    s.position.set(x, 14, 240);
+    s.target.position.set(x, 0, 200);
+    scene.add(s.target);
+    s.castShadow = false;
+    scene.add(s);
+  });
 
   // Resize
   window.addEventListener('resize', () => {
