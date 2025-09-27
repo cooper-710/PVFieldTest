@@ -171,10 +171,10 @@ export function initScene() {
   addBase(B3.x, B3.z);
 
   // Home plate
-  const shape = new THREE.Shape();
+  const plateShape = new THREE.Shape();
   shape.moveTo(-0.85,0); shape.lineTo(0.85,0); shape.lineTo(0.85,0.5);
   shape.lineTo(0,1.0);   shape.lineTo(-0.85,0.5); shape.lineTo(-0.85,0);
-  const plate = new THREE.Mesh(new THREE.ShapeGeometry(shape),
+  const plate = new THREE.Mesh(new THREE.ShapeGeometry(plateShape),
     new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.6, clearcoat: 0.2 }));
   plate.rotation.x = -Math.PI/2;
   plate.position.set(HOME.x, 0.011, HOME.z);
@@ -218,10 +218,10 @@ export function initScene() {
   scene.add(zone);
 
   // Home plate mesh
-  const shape = new THREE.Shape();
+  const plateShape = new THREE.Shape();
   shape.moveTo(-0.85,0); shape.lineTo(0.85,0); shape.lineTo(0.85,0.5);
   shape.lineTo(0,1.0);   shape.lineTo(-0.85,0.5); shape.lineTo(-0.85,0);
-  const plate = new THREE.Mesh(new THREE.ShapeGeometry(shape),
+  const plate = new THREE.Mesh(new THREE.ShapeGeometry(plateShape),
     new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.6, clearcoat: 0.2 })
   );
   plate.rotation.x = -Math.PI / 2;
